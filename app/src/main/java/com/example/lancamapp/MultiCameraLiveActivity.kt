@@ -3,17 +3,25 @@ package com.example.lancamapp
 import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
+import android.view.KeyEvent
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.WindowManager
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.focusable
 import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Close
@@ -40,6 +48,7 @@ import com.example.lancamapp.database.CameraEntity
 import com.example.lancamapp.database.FavoriteGrid
 import com.example.lancamapp.database.FavoriteGridSlot
 import com.example.lancamapp.utils.DeviceUtils
+import com.example.lancamapp.utils.VlcManager
 import kotlinx.coroutines.launch
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
@@ -87,6 +96,10 @@ fun MultiCameraLiveScreen() {
     var showLoadFavoriteDialog by remember { mutableStateOf(false) }
     var focusedSlot by remember { mutableStateOf<StreamSlot?>(null) }
 
+    BackHandler(enabled = focusedSlot != null) {
+        focusedSlot = null
+    }
+
     BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
@@ -121,29 +134,61 @@ fun MultiCameraLiveScreen() {
                             if (index < maxSlots) {
                                 Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(1.dp)) {
                                     val slot = activeSlots.getOrNull(index)
+                                    val interactionSource = remember { MutableInteractionSource() }
+                                    val isFocused by interactionSource.collectIsFocusedAsState()
+
                                     if (slot != null) {
                                         val url = DeviceUtils.generateUrlForChannel(slot.camera, slot.channel)
-                                        MultiCameraVlcPlayer(
-                                            url = url,
-                                            modifier = Modifier.fillMaxSize(),
-                                            parentSize = IntSize(parentWidth / cols, parentHeight / rows),
-                                            onDoubleTap = { focusedSlot = slot }
-                                        )
-                                        IconButton(
-                                            onClick = { activeSlots[index] = null },
-                                            modifier = Modifier.align(Alignment.TopEnd)
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .border(
+                                                    width = if (isFocused) 4.dp else 0.dp,
+                                                    color = if (isFocused) Color.Yellow else Color.Transparent,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                )
+                                                .focusable(interactionSource = interactionSource)
+                                                .clickable(interactionSource = interactionSource, indication = null) {
+                                                    focusedSlot = slot
+                                                }
                                         ) {
-                                            Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White.copy(alpha = 0.5f))
+                                            MultiCameraVlcPlayer(
+                                                url = url,
+                                                modifier = Modifier.fillMaxSize(),
+                                                parentSize = IntSize(parentWidth / cols, parentHeight / rows),
+                                                onDoubleTap = { focusedSlot = slot }
+                                            )
+                                            IconButton(
+                                                onClick = { activeSlots[index] = null },
+                                                modifier = Modifier.align(Alignment.TopEnd)
+                                            ) {
+                                                Icon(Icons.Default.Close, contentDescription = "Remove", tint = Color.White.copy(alpha = 0.5f))
+                                            }
                                         }
                                     } else {
                                         Box(
                                             modifier = Modifier
                                                 .fillMaxSize()
-                                                .background(Color.DarkGray.copy(alpha = 0.3f))
-                                                .clickable { showAddDialogForIndex = index },
+                                                .background(
+                                                    if (isFocused) Color.White.copy(alpha = 0.2f)
+                                                    else Color.DarkGray.copy(alpha = 0.3f)
+                                                )
+                                                .border(
+                                                    width = if (isFocused) 4.dp else 0.dp,
+                                                    color = if (isFocused) Color.Yellow else Color.Transparent,
+                                                    shape = RoundedCornerShape(4.dp)
+                                                )
+                                                .focusable(interactionSource = interactionSource)
+                                                .clickable(interactionSource = interactionSource, indication = null) {
+                                                    showAddDialogForIndex = index
+                                                },
                                             contentAlignment = Alignment.Center
                                         ) {
-                                            Icon(Icons.Default.Add, contentDescription = "Add Channel", tint = Color.White)
+                                            Icon(
+                                                Icons.Default.Add, 
+                                                contentDescription = "Add Channel", 
+                                                tint = if (isFocused) Color.Yellow else Color.White
+                                            )
                                         }
                                     }
                                 }
@@ -162,24 +207,21 @@ fun MultiCameraLiveScreen() {
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                IconButton(
+                TvControlIconButton(
                     onClick = { showLoadFavoriteDialog = true },
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.CircleShape)
-                ) {
-                    Icon(Icons.Default.List, contentDescription = "Load Favorite", tint = Color.White)
-                }
-                IconButton(
+                    icon = Icons.Default.List,
+                    contentDescription = "Load Favorite"
+                )
+                TvControlIconButton(
                     onClick = { showSaveFavoriteDialog = true },
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.CircleShape)
-                ) {
-                    Icon(Icons.Default.Save, contentDescription = "Save Favorite", tint = Color.White)
-                }
-                IconButton(
+                    icon = Icons.Default.Save,
+                    contentDescription = "Save Favorite"
+                )
+                TvControlIconButton(
                     onClick = { showSettingsDialog = true },
-                    modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), shape = androidx.compose.foundation.shape.CircleShape)
-                ) {
-                    Icon(Icons.Default.Settings, contentDescription = "Settings", tint = Color.White)
-                }
+                    icon = Icons.Default.Settings,
+                    contentDescription = "Settings"
+                )
             }
         }
 
@@ -320,6 +362,38 @@ fun MultiCameraLiveScreen() {
     }
 }
 
+@Composable
+fun TvControlIconButton(
+    onClick: () -> Unit,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isFocused by interactionSource.collectIsFocusedAsState()
+
+    IconButton(
+        onClick = onClick,
+        interactionSource = interactionSource,
+        modifier = Modifier
+            .background(
+                if (isFocused) Color.White.copy(alpha = 0.3f)
+                else Color.Black.copy(alpha = 0.5f),
+                shape = CircleShape
+            )
+            .border(
+                width = if (isFocused) 2.dp else 0.dp,
+                color = if (isFocused) Color.Yellow else Color.Transparent,
+                shape = CircleShape
+            )
+    ) {
+        Icon(
+            icon,
+            contentDescription = contentDescription,
+            tint = if (isFocused) Color.Yellow else Color.White
+        )
+    }
+}
+
 private fun calculateOptimalGrid(maxSlots: Int, width: Int, height: Int): Pair<Int, Int> {
     if (maxSlots <= 0) return 1 to 1
     
@@ -352,15 +426,14 @@ private fun calculateOptimalGrid(maxSlots: Int, width: Int, height: Int): Pair<I
 @Composable
 fun MultiCameraVlcPlayer(url: String, modifier: Modifier, parentSize: IntSize = IntSize.Zero, onDoubleTap: () -> Unit) {
     val context = LocalContext.current
-    val libVlc = remember { LibVLC(context, arrayListOf("-vvv", "--network-caching=300", "--rtsp-tcp")) }
+    // Use centralized LibVLC instance
+    val libVlc = remember { VlcManager.getLibVLC(context) }
     val mediaPlayer = remember { MediaPlayer(libVlc) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(url) {
         val media = Media(libVlc, Uri.parse(url))
-        media.addOption(":network-caching=300")
-        media.addOption(":clock-jitter=0")
-        media.addOption(":clock-synchro=0")
+        VlcManager.configureMedia(media, url)
 
         mediaPlayer.media = media
         media.release()
@@ -373,8 +446,9 @@ fun MultiCameraVlcPlayer(url: String, modifier: Modifier, parentSize: IntSize = 
     DisposableEffect(url) {
         onDispose {
             mediaPlayer.stop()
+            mediaPlayer.vlcVout.detachViews()
             mediaPlayer.release()
-            libVlc.release()
+            // Do NOT release libVlc here as it's shared
         }
     }
 

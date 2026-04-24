@@ -23,6 +23,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import com.example.lancamapp.utils.VlcManager
 import org.videolan.libvlc.LibVLC
 import org.videolan.libvlc.Media
 import org.videolan.libvlc.MediaPlayer
@@ -139,17 +140,14 @@ fun ZoomablePlayerBox(url: String, onDoubleTap: () -> Unit) {
 @Composable
 fun SingleVlcPlayer(url: String, modifier: Modifier, onDoubleTap: () -> Unit) {
     val context = LocalContext.current
-    // Add --vout=android-display to ensure it uses the surface correctly
-    val libVlc = remember { LibVLC(context, arrayListOf("-vvv", "--network-caching=300", "--rtsp-tcp")) }
+    // Use centralized LibVLC instance
+    val libVlc = remember { VlcManager.getLibVLC(context) }
     val mediaPlayer = remember { MediaPlayer(libVlc) }
     var isLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(url) {
         val media = Media(libVlc, Uri.parse(url))
-        // Optimize for low latency
-        media.addOption(":network-caching=300")
-        media.addOption(":clock-jitter=0")
-        media.addOption(":clock-synchro=0")
+        VlcManager.configureMedia(media, url)
 
         mediaPlayer.media = media
         media.release()
@@ -162,8 +160,9 @@ fun SingleVlcPlayer(url: String, modifier: Modifier, onDoubleTap: () -> Unit) {
     DisposableEffect(Unit) {
         onDispose {
             mediaPlayer.stop()
+            mediaPlayer.vlcVout.detachViews()
             mediaPlayer.release()
-            libVlc.release()
+            // Do NOT release libVlc here as it's shared
         }
     }
 

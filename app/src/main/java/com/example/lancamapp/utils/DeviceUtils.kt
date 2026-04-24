@@ -14,7 +14,9 @@ object DeviceUtils {
         "Tiandy",
         "Tapo / TP-Link",
         "CP Plus Ezycam",
-        "Generic ONVIF"
+        "Generic ONVIF",
+        "HLS Stream (.m3u8)",
+        "DASH Stream (.mpd)"
     )
 
     fun generateRtspUrl(camera: CameraEntity): String {
@@ -22,6 +24,11 @@ object DeviceUtils {
     }
 
     fun generateUrlForChannel(camera: CameraEntity, targetChannel: Int): String {
+        if (camera.type.contains("HLS") || camera.type.contains("DASH")) {
+            // For HLS/DASH, we treat the 'ip' field as the full URL
+            return camera.ip
+        }
+
         val safeUser = URLEncoder.encode(camera.username, "UTF-8")
         val safePass = URLEncoder.encode(camera.password, "UTF-8")
 
