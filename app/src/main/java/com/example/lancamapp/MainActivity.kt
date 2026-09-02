@@ -3,12 +3,14 @@ package com.example.lancamapp
 import android.Manifest
 import android.content.Intent
 import android.os.Bundle
-import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.*
-import com.example.lancamapp.database.CameraEntity // <--- Make sure this import is here
+import androidx.compose.ui.platform.LocalContext
+import com.example.lancamapp.database.CameraEntity
 import com.example.lancamapp.ui.AddDeviceScreen
 import com.example.lancamapp.ui.DashboardScreen
 import com.example.lancamapp.ui.DeviceDetailScreen
@@ -20,7 +22,7 @@ class MainActivity : ComponentActivity() {
     // Store data to pass between screens
     private var selectedIp: String = ""
     private var selectedType: String = ""
-    private var selectedCamera: CameraEntity? = null // <--- FIXED: Added this missing variable
+    private var selectedCamera: CameraEntity? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -37,18 +39,34 @@ class MainActivity : ComponentActivity() {
         setContent {
             LancamappTheme {
                 var currentScreen by remember { mutableStateOf(Screen.DASHBOARD) }
+                var backPressedTime by remember { mutableLongStateOf(0L) }
+                val context = LocalContext.current
 
                 when (currentScreen) {
                     Screen.DASHBOARD -> {
+                        BackHandler {
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - backPressedTime < 2000) {
+                                (context as? ComponentActivity)?.finish()
+                            } else {
+                                backPressedTime = currentTime
+                                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+                            }
+                        }
+
                         DashboardScreen(
                             onAddClick = { currentScreen = Screen.SCANNER },
                             onCameraClick = { camera ->
-                                selectedCamera = camera // Save the clicked camera
+                                selectedCamera = camera
                                 currentScreen = Screen.DEVICE_DETAIL
                             }
                         )
                     }
                     Screen.SCANNER -> {
+                        BackHandler {
+                            currentScreen = Screen.DASHBOARD
+                        }
+
                         ScannerScreen(
                             onDeviceSelected = { ip, type ->
                                 selectedIp = ip
@@ -59,6 +77,10 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     Screen.ADD_DEVICE -> {
+                        BackHandler {
+                            currentScreen = Screen.SCANNER
+                        }
+
                         AddDeviceScreen(
                             scannedIp = selectedIp,
                             scannedType = selectedType,
@@ -67,12 +89,15 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     Screen.DEVICE_DETAIL -> {
+                        BackHandler {
+                            currentScreen = Screen.DASHBOARD
+                        }
+
                         selectedCamera?.let { cam ->
                             DeviceDetailScreen(
                                 camera = cam,
                                 onBack = { currentScreen = Screen.DASHBOARD },
                                 onPlaySelected = { urls ->
-                                    // Log.d("MainActivity", "Selected URLs: $urls") // Optional
                                     val intent = Intent(this@MainActivity, MultiViewPlayerActivity::class.java)
                                     intent.putStringArrayListExtra("URL_LIST", ArrayList(urls))
                                     startActivity(intent)

@@ -11,7 +11,9 @@ data class CameraEntity(
     val port: Int = 554,
     val username: String,
     val password: String,
-    val type: String,         // "CP_PLUS", "HIKVISION", "TAPO", "GENERIC"
-    val channel: Int = 1 ,     // Channel number (useful for DVRs)
-    val channelCount: Int = 1 // <--- NEW FIELD (Default 1 for Wi-Fi Cams, 4/8/16 for DVRs)
+    val type: String,         // "CP Plus / Dahua", "Hikvision / Prama", "Tapo / TP-Link", etc.
+    val channel: Int = 1,     // Channel number
+    val channelCount: Int = 1, // Number of channels (1 for Wi-Fi Cams, 4/8/16 for DVRs)
+    val customPath: String = "", // Optional custom RTSP path override
+    val streamType: String = "sub" // "sub" (Substream) or "main" (Mainstream)
 )
